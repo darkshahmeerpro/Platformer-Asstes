@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tower Climber Platformer</title>
+    <style>
+        @font-face {
+            font-family: 'PixelOperator8';
+            src: url('font/PixelOperator8.ttf') format('truetype');
+        }
+        @font-face {
+            font-family: 'PixelOperator8-Bold';
+            src: url('font/PixelOperator8-Bold.ttf') format('truetype');
+            font-weight: bold;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: 'PixelOperator8', sans-serif;
+            flex-direction: column;
+        }
+        canvas {
+            border: 4px solid #45f3ff;
+            background-color: #111625;
+            box-shadow: 0px 0px 20px rgba(69, 243, 255, 0.3);
+        }
+        p { color: #aaa; margin-top: 8px; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;}
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas" width="600" height="700"></canvas>
+    <p>A/D to Run | W/Space to Jump | R to Restart</p>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // ==========================================
+        // 1. ASSET LOADING & CONFIGURATION
+        // ==========================================
+        const knightImg = new Image(); knightImg.src = 'knight.png';
+        const platformsImg = new Image(); platformsImg.src = 'platforms.png';
+        const slimeGreenImg = new Image(); slimeGreenImg.src = 'slime_green.png';
+        const slimePurpleImg = new Image(); slimePurpleImg.src = 'slime_purple.png';
+        const coinImg = new Image(); coinImg.src = 'coin.png';
+        const fruitImg = new Image(); fruitImg.src = 'fruit.png';
+
+        // Core Constants
+        const WORLD_WIDTH = 600;
+        const WORLD_HEIGHT = 2500; 
+        const GRAVITY = 0.5;
+        const FRICTION = 0.8;
+
+        // Global States
+        let gameState = "PLAYING"; 
+        let score = 0;
+        let gameTicks = 0; // Tracks frames for global animations
+
+        // Player configuration adjusted to match knight dimensions
+        let player = {
+            x: 300, y: 2400, 
+            width: 32, height: 32,
+            speed: 5, velX: 0, velY: 0,
+            jumping: false, grounded: false,
+            health: 3, maxHealth: 3,
+            facingRight: true
+        };
+
+        let camera = { y: WORLD_HEIGHT - canvas.height };
+
+        // Platforms Layout
+        const platforms = [
+            { x: 0, y: 2460, width: 600, height: 40, isGoal: false },
+            { x: 100, y: 2320, width: 150, height: 20, isGoal: false },
+            { x: 350, y: 2180, width: 150, height: 20, isGoal: false },
+            { x: 200, y: 2040, width: 150, height: 20, isGoal: false },
+            { x: 50,  y: 1900, width: 150, height: 20, isGoal: false },
+            { x: 400, y: 1760, width: 150, height: 20, isGoal: false },
+            { x: 250, y: 1620, width: 150, height: 20, isGoal: false },
+            { x: 100, y: 1480, width: 150, height: 20, isGoal: false },
+            { x: 300, y: 1340, width: 200, height: 20, isGoal: false },
+            { x: 50,  y: 1200, width: 150, height: 20, isGoal: false },
+            { x: 350, y: 1060, width: 150, height: 20, isGoal: false },
+            { x: 200, y: 920,  width: 150, height: 20, isGoal: false },
+            { x: 80,  y: 780,  width: 180, height: 20, isGoal: false },
+            { x: 380, y: 640,  width: 150, height: 20, isGoal: false },
+            { x: 200, y: 500,  width: 200, height: 20, isGoal: false },
+            { x: 50,  y: 360,  width: 150, height: 20, isGoal: false },
+            { x: 200, y: 220,  width: 200, height: 25, isGoal: true }
+        ];
+
+        // Slime Guardians (Replacing old Turrets)
+        const slimes = [
+            { x: 10,  y: 2285, dir: 1,  cooldown: 0, fireRate: 100 },
+            { x: 555, y: 2145, dir: -1, cooldown: 40, fireRate: 100 },
+            { x: 10,  y: 1865, dir: 1,  cooldown: 0, fireRate: 90 },
+            { x: 555, y: 1585, dir: -1, cooldown: 50, fireRate: 90 },
+            { x: 10,  y: 1305, dir: 1,  cooldown: 20, fireRate: 80 },
+            { x: 555, y: 1025, dir: -1, cooldown: 35, fireRate: 80 },
+            { x: 10,  y: 745,  dir: 1,  cooldown: 0, fireRate: 70 },
+            { x: 555, y: 465,  dir: -1, cooldown: 25, fireRate: 70 }
+        ];
+
+        let bullets = [];
+        let items = [];
+        const keys = {};
+
+        // Auto-generate items on top of platforms dynamically
+        function generateItems() {
+            items = [];
+            platforms.forEach((plat, index) => {
+                if (index === 0 || plat.isGoal) return;
+                
+                // Spawn a coin
+                items.push({
+                    x: plat.x + (plat.width / 4) - 8,
+                    y: plat.y - 25,
+                    width: 16, height: 16,
+                    type: 'coin',
+                    collected: false
+                });
+
+                // Spawn a fruit
+                items.push({
+                    x: plat.x + (plat.width * 0.75) - 8,
+                    y: plat.y - 25,
+                    width: 16, height: 16,
+                    type: 'fruit',
+                    collected: false
+                });
+            });
+        }
+
+        window.addEventListener("keydown", (e) => { 
+            keys[e.code] = true; 
+            if (e.code === "KeyR") resetGame();
+        });
+        window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+        function resetGame() {
+            player.x = 300; player.y = 2400; player.velX = 0; player.velY = 0;
+            player.health = player.maxHealth; bullets = []; score = 0;
+            slimes.forEach(s => s.cooldown = Math.random() * 40);
+            generateItems();
+            gameState = "PLAYING";
+        }
+
+        // Initialize items on boot
+        generateItems();
+
+        // ==========================================
+        // 2. ENGINE SIMULATION UPDATE LOOP
+        // ==========================================
+        function update() {
+            gameTicks++;
+            if (gameState !== "PLAYING") { draw(); requestAnimationFrame(update); return; }
+
+            // Movement Inputs
+            if (keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) {
+                if (!player.jumping && player.grounded) {
+                    player.jumping = true; player.grounded = false;
+                    player.velY = -player.speed * 2.5; 
+                }
+            }
+            if (keys["ArrowLeft"] || keys["KeyA"]) { 
+                if (player.velX > -player.speed) player.velX--; 
+                player.facingRight = false;
+            }
+            if (keys["ArrowRight"] || keys["KeyD"]) { 
+                if (player.velX < player.speed) player.velX++; 
+                player.facingRight = true;
+            }
+
+            // Physics application
+            player.velX *= FRICTION; player.velY += GRAVITY; player.grounded = false;
+            player.x += player.velX; player.y += player.velY;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > WORLD_WIDTH) player.x = WORLD_WIDTH - player.width;
+
+            // Platform Collisions
+            for (let i = 0; i < platforms.length; i++) {
+                let plat = platforms[i];
+                if (player.x < plat.x + plat.width && player.x + player.width > plat.x &&
+                    player.y < plat.y + plat.height && player.y + player.height > plat.y) {
+                    let oX = (player.x + (player.width / 2)) - (plat.x + (plat.width / 2));
+                    let oY = (player.y + (player.height / 2)) - (plat.y + (plat.height / 2));
+                    let minW = (player.width / 2) + (plat.width / 2);
+                    let minH = (player.height / 2) + (plat.height / 2);
+                    let overlapX = minW - Math.abs(oX); let overlapY = minH - Math.abs(oY);
+
+                    if (overlapX >= overlapY) {
+                        if (oY > 0) { player.y += overlapY; player.velY = 0; }
+                        else { 
+                            player.y -= overlapY; player.jumping = false; player.grounded = true; player.velY = 0; 
+                            if (plat.isGoal) gameState = "WIN"; 
+                        }
+                    } else {
+                        if (oX > 0) player.x += overlapX; else player.x -= overlapX;
+                    }
+                }
+            }
+
+            // Collectibles Intersections
+            items.forEach(item => {
+                if(!item.collected && player.x < item.x + item.width && player.x + player.width > item.x &&
+                   player.y < item.y + item.height && player.y + player.height > item.y) {
+                    item.collected = true;
+                    score += item.type === 'coin' ? 100 : 250;
+                }
+            });
+
+            // Slimes Fire Management
+            slimes.forEach(s => {
+                s.cooldown--;
+                if (s.cooldown <= 0) {
+                    bullets.push({ 
+                        x: s.dir === 1 ? s.x + 32 : s.x - 16, 
+                        y: s.y + 8, 
+                        width: 16, height: 16, 
+                        vx: s.dir * 4.0 
+                    });
+                    s.cooldown = s.fireRate;
+                }
+            });
+
+            // Projectile Tracking
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i]; b.x += b.vx;
+                if (b.x < player.x + player.width && b.x + b.width > player.x && b.y < player.y + player.height && b.y + b.height > player.y) {
+                    player.health--; bullets.splice(i, 1);
+                    if (player.health <= 0) gameState = "GAMEOVER";
+                    continue;
+                }
+                if (b.x < 0 || b.x > WORLD_WIDTH) bullets.splice(i, 1);
+            }
+
+            // Camera Tracking
+            camera.y = player.y - canvas.height / 2;
+            if (camera.y < 0) camera.y = 0;
+            if (camera.y > WORLD_HEIGHT - canvas.height) camera.y = WORLD_HEIGHT - canvas.height;
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        // ==========================================
+        // 3. SPRITE GRAPHICS RENDERING SYSTEM
+        // ==========================================
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Enforce retro pixel crispness
+            ctx.imageSmoothingEnabled = false;
+
+            // Background Grid Lines
+            ctx.strokeStyle = "#1a233a"; ctx.lineWidth = 1;
+            for(let i = 0; i < WORLD_HEIGHT; i += 50) {
+                let screenY = i - camera.y;
+                if(screenY >= 0 && screenY <= canvas.height) {
+                    ctx.beginPath(); ctx.moveTo(0, screenY); ctx.lineTo(canvas.width, screenY); ctx.stroke();
+                }
+            }
+
+            // Render Platforms
+            platforms.forEach(plat => {
+                if (plat.isGoal) {
+                    ctx.fillStyle = "#ffd700"; ctx.fillRect(plat.x, plat.y - camera.y, plat.width, plat.height);
+                } else {
+                    if (platformsImg.complete && platformsImg.width > 0) {
+                        // Tile the brick asset continuously along width
+                        for (let tx = 0; tx < plat.width; tx += 16) {
+                            ctx.drawImage(platformsImg, 16, 16, 16, 16, plat.x + tx, plat.y - camera.y, 16, plat.height);
+                        }
+                    } else {
+                        ctx.fillStyle = "#ef8354"; ctx.fillRect(plat.x, plat.y - camera.y, plat.width, plat.height);
+                    }
+                }
+            });
+
+            // Render Collectibles (Coins & Fruits)
+            items.forEach(item => {
+                if (item.collected) return;
+                let img = item.type === 'coin' ? coinImg : fruitImg;
+                
+                if (img.complete && img.width > 0) {
+                    // Coin sheet loop animation (4 frames)
+                    let frame = Math.floor(gameTicks / 10) % 4;
+                    ctx.drawImage(img, frame * 16, 0, 16, 16, item.x, item.y - camera.y, 16, 16);
+                } else {
+                    ctx.fillStyle = item.type === 'coin' ? "#ffd700" : "#ff4500";
+                    ctx.fillRect(item.x, item.y - camera.y, 16, 16);
+                }
+            });
+
+            // Render Guard Slimes
+            slimes.forEach(s => {
+                if (slimeGreenImg.complete && slimeGreenImg.width > 0) {
+                    let frame = Math.floor(gameTicks / 12) % 4;
+                    ctx.save();
+                    if(s.dir === -1) { 
+                        ctx.translate(s.x + 32, s.y - camera.y); ctx.scale(-1, 1); 
+                        ctx.drawImage(slimeGreenImg, frame * 16, 0, 16, 16, 0, 0, 32, 32); 
+                    } else { 
+                        ctx.drawImage(slimeGreenImg, frame * 16, 0, 16, 16, s.x, s.y - camera.y, 32, 32); 
+                    }
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle = "#00ff88"; ctx.fillRect(s.x, s.y - camera.y, 32, 32);
+                }
+            });
+
+            // Render Plasma Projectiles
+            bullets.forEach(b => {
+                if (slimePurpleImg.complete && slimePurpleImg.width > 0) {
+                    let frame = Math.floor(gameTicks / 8) % 4;
+                    ctx.drawImage(slimePurpleImg, frame * 16, 0, 16, 16, b.x, b.y - camera.y, 16, 16);
+                } else {
+                    ctx.fillStyle = "#b500ff"; ctx.fillRect(b.x, b.y - camera.y, 12, 12);
+                }
+            });
+
+            // Render Player Knight
+            if (knightImg.complete && knightImg.width > 0) {
+                let frame = 0;
+                // Simple animation switcher based on physics state
+                if (!player.grounded) {
+                    frame = 2; // Jump frame position
+                } else if (Math.abs(player.velX) > 0.5) {
+                    frame = Math.floor(gameTicks / 6) % 6; // Run animation row slice mapping
+                } else {
+                    frame = Math.floor(gameTicks / 10) % 4; // Idle breathe animation slice loop
+                }
+
+                ctx.save();
+                // Character flipping routine depending on movement facing direction vector
+                if (!player.facingRight) {
+                    ctx.translate(player.x + player.width, player.y - camera.y);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(knightImg, frame * 32, 0, 32, 32, 0, 0, player.width, player.height);
+                } else {
+                    ctx.drawImage(knightImg, frame * 32, 0, 32, 32, player.x, player.y - camera.y, player.width, player.height);
+                }
+                ctx.restore();
+            } else {
+                ctx.fillStyle = "#00f5ff"; ctx.fillRect(player.x, player.y - camera.y, player.width, player.height);
+            }
+
+            // --- HEADS UP USER INTERFACE SCREEN LAYER ---
+            ctx.fillStyle = "#e94560";
+            ctx.font = "14px 'PixelOperator8'";
+            ctx.fillText("HP: " + "❤️".repeat(player.health), 20, 40);
+
+            ctx.fillStyle = "#ffd700";
+            ctx.fillText(`SCORE:${score.toString().padStart(6, '0')}`, 20, 70);
+
+            let progress = Math.round(((WORLD_HEIGHT - player.y) / WORLD_HEIGHT) * 100);
+            ctx.fillStyle = "#fff";
+            ctx.fillText(`CLIMB: ${progress}%`, canvas.width - 170, 40);
+
+            if (gameState === "GAMEOVER") {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#e94560";
+                ctx.font = "22px 'PixelOperator8-Bold'";
+                ctx.textAlign = "center";
+                ctx.fillText("SYSTEM FAILURE", canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillStyle = "#fff";
+                ctx.font = "14px 'PixelOperator8'";
+                ctx.fillText("Press 'R' to Reboot", canvas.width / 2, canvas.height / 2 + 30);
+                ctx.textAlign = "start";
+            }
+
+            if (gameState === "WIN") {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#ffd700";
+                ctx.font = "22px 'PixelOperator8-Bold'";
+                ctx.textAlign = "center";
+                ctx.fillText("TOWER ASCENDED!", canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillStyle = "#fff";
+                ctx.font = "14px 'PixelOperator8'";
+                ctx.fillText("Press 'R' to Play Again", canvas.width / 2, canvas.height / 2 + 30);
+                ctx.textAlign = "start";
+            }
+        }
+
+        update();
+    </script>
+</body>
+</html>

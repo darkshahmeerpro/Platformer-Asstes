@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platformer Game Launcher</title>
+    <style>
+        /* Import a friendly, modern casual game font to match Kenney's asset aesthetic */
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap');
+
+        :root {
+            --bg-sky: #b3e5fc;
+            --panel-left: rgba(255, 255, 255, 0.92);
+            --panel-right: rgba(245, 250, 255, 0.85);
+            --color-accent: #ff9800;
+            --color-play: #4caf50;
+            --color-play-hover: #66bb6a;
+            --text-dark: #2c3e50;
+            --text-muted: #546e7a;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-sky);
+            color: var(--text-dark);
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* =========================================================
+           STUNNING ANIMATED PLATFORMER PARALLAX WORLD
+           ========================================================= */
+        .world-environment {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #81d4fa 0%, #b3e5fc 60%, #e1f5fe 100%);
+        }
+
+        /* Smooth floating cloud layers */
+        .clouds {
+            position: absolute;
+            top: 10%; width: 200%; height: 150px;
+            background: radial-gradient(circle at 15% 50%, #fff 50px, transparent 51px),
+                        radial-gradient(circle at 19% 35%, #fff 65px, transparent 66px),
+                        radial-gradient(circle at 24% 50%, #fff 55px, transparent 56px),
+                        radial-gradient(circle at 65% 40%, #fff 45px, transparent 46px),
+                        radial-gradient(circle at 69% 25%, #fff 60px, transparent 61px),
+                        radial-gradient(circle at 73% 40%, #fff 50px, transparent 51px);
+            background-size: 1200px 100%;
+            opacity: 0.7;
+            animation: scrollLandscape 50s linear infinite;
+        }
+
+        /* Endless scrolling platforms using your uploaded tiles/platforms background */
+        .ground-line {
+            position: absolute;
+            bottom: 0; left: 0; width: 200%; height: 74px;
+            background-image: url('sprites/platforms.png');
+            background-repeat: repeat-x;
+            background-size: auto 74px;
+            animation: scrollLandscape 12s linear infinite;
+        }
+
+        @keyframes scrollLandscape {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* LIVE ACTIVE SPRITES ANIMATED VIA CSS STEPS */
+        .animated-slime {
+            position: absolute;
+            bottom: 64px;
+            left: 75%;
+            width: 32px;
+            height: 32px;
+            background-image: url('sprites/slime_green.png');
+            background-repeat: no-repeat;
+            background-size: 128px 96px; /* Mapping rows/columns context */
+            transform: scale(2);
+            image-rendering: pixelated;
+            animation: slimeHop 0.7s steps(4) infinite;
+        }
+
+        .animated-coin {
+            position: absolute;
+            bottom: 160px;
+            left: 45%;
+            width: 16px;
+            height: 16px;
+            background-image: url('sprites/coin.png');
+            background-repeat: no-repeat;
+            background-size: 192px 16px; /* 12 uniform frame layout horizontal slice */
+            transform: scale(2.5);
+            image-rendering: pixelated;
+            animation: coinSpin 0.9s steps(12) infinite;
+        }
+
+        @keyframes slimeHop {
+            0% { background-position: 0px 0px; }
+            100% { background-position: -128px 0px; }
+        }
+
+        @keyframes coinSpin {
+            0% { background-position: 0px 0px; }
+            100% { background-position: -192px 0px; }
+        }
+
+        /* =========================================================
+           BORDERLESS SPLIT PANEL MAIN HUB DISPLAY
+           ========================================================= */
+        .main-hud-hub {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            width: 900px;
+            height: 520px;
+            background: transparent;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0px 20px 50px rgba(0, 0, 0, 0.15);
+            animation: scaleInBubble 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.2);
+        }
+
+        @keyframes scaleInBubble {
+            from { transform: scale(0.85); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* LEFT SIDEBAR: NAVIGATION SELECTORS */
+        .left-menu-sidebar {
+            width: 40%;
+            background-color: var(--panel-left);
+            backdrop-filter: blur(10px);
+            padding: 40px 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .hub-label-badge {
+            font-size: 1.2rem;
+            color: var(--color-accent);
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .game-selection-card {
+            background-color: rgba(255, 255, 255, 0.8);
+            color: var(--text-dark);
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            padding: 16px 20px;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 0px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .game-selection-card:hover {
+            background-color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .game-selection-card.active {
+            background-color: var(--color-accent);
+            color: white;
+            transform: scale(1.02);
+            box-shadow: 0 6px 15px rgba(255, 152, 0, 0.3);
+        }
+
+        /* Small structural indicator inside buttons */
+        .status-bullet {
+            width: 10px;
+            height: 10px;
+            background-color: #cbd5e1;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .game-selection-card.active .status-bullet {
+            background-color: #ffffff;
+            transform: scale(1.3);
+        }
+
+        /* RIGHT PANEL: SUMMARY VIEW AREA */
+        .right-info-display {
+            width: 60%;
+            background-color: var(--panel-right);
+            backdrop-filter: blur(10px);
+            padding: 50px 45px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .overview-payload h1 {
+            font-size: 2.5rem;
+            margin: 0 0 15px 0;
+            color: var(--text-dark);
+        }
+
+        .overview-payload p {
+            font-size: 1.1rem;
+            font-weight: 500;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        /* Tactile vector styling for Play Action Button */
+        .play-action-trigger {
+            align-self: flex-start;
+            background-color: var(--color-play);
+            color: white;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            font-size: 1.4rem;
+            padding: 16px 45px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 6px 0px #388e3c;
+            transition: all 0.1s ease;
+        }
+
+        .play-action-trigger:hover {
+            background-color: var(--color-play-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0px #388e3c;
+        }
+
+        .play-action-trigger:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0px #388e3c;
+        }
+
+        .version-manifest {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+            border-top: 2px solid rgba(0, 0, 0, 0.05);
+            padding-top: 15px;
+        }
+
+        /* =========================================================
+           IFRAME RUNTIME OVERLAY LAYER
+           ========================================================= */
+        .game-viewport-container {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000000;
+            z-index: 100;
+        }
+
+        iframe {
+            width: 100%; height: 100%; border: none;
+        }
+
+        .exit-overlay-btn {
+            position: absolute;
+            top: 20px; left: 20px;
+            background-color: #ef5350;
+            color: white;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            z-index: 110;
+            box-shadow: 0px 4px 0px #c62828;
+            transition: all 0.1s;
+        }
+
+        .exit-overlay-btn:hover {
+            background-color: #f44336;
+            transform: translateY(-2px);
+            box-shadow: 0px 6px 0px #c62828;
+        }
+
+        .exit-overlay-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0px 1px 0px #c62828;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="world-environment">
+        <div class="clouds"></div>
+        <div class="animated-coin"></div>
+        <div class="animated-slime"></div>
+        <div class="ground-line"></div>
+    </div>
+
+    <div class="main-hud-hub">
+        
+        <div class="left-menu-sidebar">
+            <div class="hub-label-badge">Select Adventure</div>
+            
+            <button class="game-selection-card active" onclick="selectGame('tower', event)">
+                <div class="status-bullet"></div>
+                World 1: Tower Climber
+            </button>
+            
+            <button class="game-selection-card" onclick="selectGame('space', event)">
+                <div class="status-bullet"></div>
+                World 2: Space Raider
+            </button>
+            
+            <button class="game-selection-card" onclick="selectGame('cyber', event)">
+                <div class="status-bullet"></div>
+                World 3: Cyber Runner
+            </button>
+        </div>
+
+        <div class="right-info-display">
+            <div class="overview-payload">
+                <h1 id="gameTitle">Tower Climber</h1>
+                <p id="gameDesc">An intense arcade vertical platformer. Scale a highly volatile defensive matrix infrastructure while dodging automated anti-personnel pulse turrets. Reach 100% elevation to secure containment.</p>
+            </div>
+
+            <button onclick="launchCurrentGame()" class="play-action-trigger">PLAY NOW</button>
+
+            <div class="version-manifest">
+                <span>KENNEY ASSETS EDITION</span>
+                <span>v4.0 // ENGINE CORE</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="game-viewport-container" id="gameFrameContainer">
+        <button class="exit-overlay-btn" onclick="closeActiveGame()">✕ Back to Hub</button>
+        <iframe id="gameIframe" src=""></iframe>
+    </div>
+
+    <script>
+        let targetedKey = 'tower';
+
+        const gameDatabase = {
+            tower: {
+                title: "Tower Climber",
+                desc: "An intense arcade vertical platformer. Scale a highly volatile defensive matrix infrastructure while dodging automated anti-personnel pulse turrets. Reach 100% elevation to secure containment.",
+                file: "game.html"
+            },
+            space: {
+                title: "Space Raider",
+                desc: "Explore gravity loops and celestial physics boards in this side-scrolling exploration level. Evade orbital dynamic mines and land securely on cosmic outposts.",
+                file: "space.html"
+            },
+            cyber: {
+                title: "Cyber Runner",
+                desc: "A fast-paced neon platform sprint dashboard. Leap across shifting firewall blocks, time your double-jumps perfectly, and dodge system memory glitches.",
+                file: "cyber.html"
+            }
+        };
+
+        function selectGame(key, event) {
+            targetedKey = key;
+            const buttons = document.querySelectorAll('.game-selection-card');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            // Fixed standard runtime event parameter handling bug cleanly here
+            event.currentTarget.classList.add('active');
+
+            const gameData = gameDatabase[key];
+            document.getElementById('gameTitle').innerText = gameData.title;
+            document.getElementById('gameDesc').innerText = gameData.desc;
+        }
+
+        function launchCurrentGame() {
+            const gameData = gameDatabase[targetedKey];
+            const container = document.getElementById('gameFrameContainer');
+            const iframe = document.getElementById('gameIframe');
+
+            iframe.src = gameData.file;
+            container.style.display = 'block';
+
+            iframe.onload = function() {
+                iframe.contentWindow.focus();
+            };
+        }
+
+        function closeActiveGame() {
+            const container = document.getElementById('gameFrameContainer');
+            const iframe = document.getElementById('gameIframe');
+            
+            iframe.src = "";
+            container.style.display = 'none';
+        }
+    </script>
+</body>
+</html> 
